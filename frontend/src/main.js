@@ -1,0 +1,10 @@
+import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import './index.css';
+import Layout from './components/Layout';
+import UploadPage from './pages/UploadPage';
+import ReceiptPage from './pages/ReceiptPage';
+import HistoryPage from './pages/HistoryPage';
+ReactDOM.createRoot(document.getElementById('root')).render(_jsx(React.StrictMode, { children: _jsx(BrowserRouter, { children: _jsx(Routes, { children: _jsxs(Route, { element: _jsx(Layout, {}), children: [_jsx(Route, { index: true, element: _jsx(UploadPage, {}) }), _jsx(Route, { path: "receipts", element: _jsx(HistoryPage, {}) }), _jsx(Route, { path: "receipts/:id", element: _jsx(ReceiptPage, {}) }), _jsx(Route, { path: "*", element: _jsx(Navigate, { to: "/", replace: true }) })] }) }) }) }));

@@ -1,38 +1,17 @@
 # Receipt Parser
 
-**Turn photos of receipts into structured data in seconds.** Upload an image. Get instant AI extraction. Fix what's wrong. Save to Postgres.
-
-Built with TypeScript, React, Gemini 3.1 Flash, and Postgres—designed around a powerful correction workflow that catches what the AI misses.
+**The correction UX is the product.** AI extracts fast. Users verify and fix in seconds. That's it.
 
 ---
 
-## Why This Matters
+## What did you build?
 
-**The Problem:** Receipts are unstructured images. Digitizing them requires careful manual entry or building complex OCR pipelines. Neither scales.
+A full-stack app where the core insight is: **correction is faster and better than perfection**. Upload a receipt → Gemini 3.1 Flash extracts (2–4s) → live preview with confidence flags and math validation → users edit inline with instant recalculation → save. The extraction is deliberately fast-but-imperfect. The UX catches what the AI misses.
 
-**The Solution:** Feed a receipt photo to Gemini 3.1 Flash. Get back merchant, date, line items, and total in milliseconds. Review the extracted data with visual confidence flags highlighting uncertain fields. Edit inline. Save corrected data. Done.
-
-The magic is in the **correction-first UX**—the app assumes the AI will be imperfect (especially on blurry or complex receipts) and makes fixing errors trivial, not finding them a puzzle.
-
----
-
-## Key Features
-
-✅ **AI-Powered Extraction** — Gemini 3.1 Flash processes receipt images in 2–4 seconds  
-✅ **Smart Confidence Flagging** — Visual warnings on uncertain fields, detected sum-vs-total mismatches  
-✅ **Live Correction Workflow** — Edit any field inline; totals recalculate instantly  
-✅ **Persistent Storage** — All corrections saved to Postgres  
-✅ **Full-Stack TypeScript** — Express backend + React frontend, type-safe end-to-end  
-
----
-
-## How It Works
-
-1. **Upload** a receipt image via the frontend
-2. **Extract** — Backend sends image to Gemini 3.1 Flash with a structured prompt
-3. **Review** — Frontend highlights uncertain extractions and math mismatches
-4. **Correct** — Edit fields inline with live validation
-5. **Save** — Corrected receipt stored in Postgres
+**Edge cases are handled explicitly, not hidden:**
+- **Bad/blurry image?** Flag it immediately. Let the user re-upload without wasting time fixing wrong data.
+- **Malformed LLM output?** Fallback to partial parse (empty fields show as blanks). User sees exactly what failed.
+- **Missing fields?** Show them as empty. User fills them in. Not "uncertain"—just empty.
 
 ---
 
@@ -68,56 +47,82 @@ npm run dev
 
 ---
 
-## Technical Approach
+## The Correction UX (The Real Product)
 
-## Design Decisions
+### Upload & Preview
+- Drag-and-drop or click to select a JPG/PNG receipt image
+- Live side-by-side: original image on left, extracted data on right
+- **Confidence flags appear immediately** if issues are detected
+- User decides: "Confirm & Edit" or "Upload Different"
 
-Why these choices? Because shipping fast with good UX beats pursuing perfection in the wrong direction.
+### Edit Flow
+Every field is editable inline. The moment you change anything:
+- **Total vs. items sum** is calculated live. Mismatch? Shown in red. User instantly sees the discrepancy and fixes it.
+- **Add/remove line items** — totals recalculate. No hidden math.
+- **Empty fields are visible** — if Gemini couldn't read the merchant, it's blank. User knows exactly what to fill in.
+- Save only when there are actual changes (dirty flag prevents accident saves).
 
-**1. Gemini 3.1 Flash Preview over GPT-4o or Claude**  
-Flash is fast (~2–4s for a receipt image) and cheap, which matters for a product where users will upload casually and expect near-instant feedback. Accuracy is slightly lower than the frontier models on complex or blurry receipts — but since users are correcting the output anyway, getting *something reasonable* quickly beats getting *something perfect* slowly. The correction UX is designed to catch what the model misses, not to avoid the problem.
+### Edge Case Handling
 
-**2. Confidence flags instead of confidence scores**  
-The model doesn't return per-field confidence scores, so I derive them heuristically: null fields = uncertain, sum-vs-total mismatch = flagged, certain keywords in the model's `_notes` field = low quality. This is imperfect — a correctly-parsed null is treated the same as an unreadable field — but it surfaces the right things for the user to review without requiring a second LLM call to assess the first one's output.
+**1. Low-quality image**
+- Flagged with "⚠️ Low image quality"
+- User sees this before committing, can re-upload
+- Doesn't block editing—user can fix manually if they want
 
-**3. Subtotals excluded from line items**  
-A deliberate product decision: subtotals (pre-tax amounts) are arithmetically redundant — they're just the sum of the items above them. Including them would make the total-vs-sum mismatch detector fire constantly and confuse users. Tax and tip *are* included as named line items because they represent real money flows the user might want to track. Discounts are included as negative amounts. If I were wrong about this, a user could always add a line item manually.
+**2. Partial extraction (missing fields)**
+- Merchant = empty, Date = empty, Total = empty → all shown as blanks in the editor
+- User fills them in manually. The form is ready; not "uncertain" or broken
+- Flag shows "⚠️ Partial extraction" to signal something was missed
 
----
+**3. Total ≠ sum of line items**
+- Real-time indicator: "Items sum to $18.50" displayed under total
+- Flagged as error (red background) so user doesn't miss it
+- User fixes by editing items or the total — their choice
 
-## Implementation: Where LLMs Fit
-
-This project isn't all AI—most of the actual work is intentional engineering:
-
-- **Gemini 3.1 Flash** → Core vision model: base64 image + structured prompt → JSON extraction
-- **Claude Sonnet** → Rapid prompt iteration (tuning `_notes` instruction, line item rules)
-- **Everything else** → Manual: API structure, frontend components, confidence flag logic, mismatch detection
-
-The result: AI does what it's best at (vision), humans do the rest (UX, validation, persistence).
-
----
-
-## Roadmap: Next Priorities
-
-1. **Receipt image preview in the editor** — the user is reviewing extracted data but can't see the original image to verify. That's the most glaring gap in the current correction UX. Storing images in S3 or on disk and displaying them side-by-side would make corrections dramatically faster.
-2. **Re-parse button** — if the extraction is badly wrong (blurry image), the user currently has to fix everything manually. A "try again" that re-sends to Gemini with a note ("the first extraction missed the date — it's on the bottom right") would save a lot of effort.
-3. **Export** — CSV or JSON download of saved receipts. Obvious for expense tracking use cases.
-4. **Better error recovery on malformed JSON** — currently if Gemini returns garbled output, the whole extraction fails. A fallback regex pass to rescue at least the total would be worth adding.
-
----
-
-## The Real Insight
-
-**Current limitation:** The spec emphasizes correction as the most important UX—and I agree. But there's a blind spot.
-
-The way most apps handle AI output is wrong: they assume the LLM is ground truth and the user corrects *down from* it. That's backwards for low-quality images. Sometimes the model returns confident-looking *but incorrect* data, and the user has no signal to distrust it.
-
-**The fix:** Show the original image alongside extracted fields. Not just flag uncertain ones—make verification immediate and visual. A user reviewing extracted data from memory is flying blind. A user reviewing it against the receipt photo will catch almost everything.
-
-The current flag system is a mitigation. The real solution is the side-by-side view—that's the next priority.
+**4. Malformed LLM output (non-JSON)**
+- Parser falls back to: `{ merchant: null, date: null, line_items: [], total: null }`
+- Frontend shows empty form
+- Confidence flag: "⚠️ Partial extraction"
+- User starts fresh, isn't blocked
 
 ---
 
-## Contributing
+## Biggest tradeoffs and why?
 
-This is a complete, self-contained application. Feel free to fork, extend, or use it as a foundation for your own receipt processing workflow.
+**Gemini 3.1 Flash over GPT-4o or Claude:** Flash is fast (~2–4s) and cheap. It's wrong sometimes on blurry receipts. But wrong-and-fast beats perfect-and-slow because correction is free. If 90% is correct, the user fixes 10% in 30 seconds. If perfect takes twice as long to extract, you've lost.
+
+**Confidence flags (heuristic) instead of confidence scores:** No API for per-field confidence, so I derive it: null = uncertain, sum mismatch = flagged, blurry keywords = low quality. It's imperfect. But showing users *what to verify* without a second LLM call is worth the imprecision.
+
+**Subtotals excluded:** Mathematically redundant (sum of items above). Inclusion would fire mismatch detector constantly. Users trust the UI more when it doesn't cry wolf.
+
+---
+
+## Where exactly did you use an LLM?
+
+- **Gemini 3.1 Flash** → Receipt image (base64) + structured system prompt → JSON extraction
+- **Claude Sonnet** → Prompt tuning (edge cases, line item rules, notes format)
+- **Everything else** → Manual: error recovery, confidence logic, mismatch detection, correction UX, React components
+
+---
+
+## What would you do with another week?
+
+1. **Re-parse with context button** — If extraction is badly wrong, user hits "Try Again" → Gemini gets the image + the previous extraction + user's feedback ("date is in bottom right"). Dramatically faster than manual fix.
+
+2. **Export to CSV/JSON** — Users want to download their corrected receipts for expense tracking.
+
+3. **Undo/redo in the editor** — Users make quick edits; undo stack keeps them confident (not afraid of mistakes).
+
+---
+
+## What would you push back on as a PM?
+
+"The correction flow is the most important part"—yes. But it's only as good as the user's ability to spot what's wrong. **Without the side-by-side image preview in the editor, you're asking users to verify from memory.** 
+
+A user sees:
+- Merchant: Starbucks
+- Total: $18.50
+
+They can't verify this against the original unless they remember. They might save wrong data. The confidence flags catch *some* problems, but not all (a correct null looks identical to an unread field).
+
+**Fix:** Keep the receipt image visible in the edit screen too, not just the upload preview. That one change makes the UX 10x stronger. Users spot errors instantly. Corrections take seconds.

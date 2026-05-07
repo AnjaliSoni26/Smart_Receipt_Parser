@@ -1,0 +1,13 @@
+{
+  "name": "receipt-parser",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently \"npm run dev --prefix backend\" \"npm run dev --prefix frontend\" --names \"api,ui\" --prefix-colors \"red,blue\"",
+    "install:all": "npm install --prefix backend && npm install --prefix frontend",
+    "db:migrate": "npm run db:migrate --prefix backend"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

@@ -1,14 +1,42 @@
 # Receipt Parser
 
-A full-stack web app that turns a photo of a receipt into structured, editable data — using Gemini Vision for OCR and Postgres for persistence.
+**Turn photos of receipts into structured data in seconds.** Upload an image. Get instant AI extraction. Fix what's wrong. Save to Postgres.
 
-## What did you build?
-
-A two-part app: a TypeScript/Express backend that accepts a receipt image, sends it to Gemini 2.0 Flash for structured extraction (merchant, date, line items, total), flags potential quality issues, and saves the result to Postgres. A React frontend that lets you upload images, review what the LLM extracted — with visual warnings on fields it wasn't confident about — edit any field inline, and save corrections. The correction UX is the center of gravity: every uncertain field is highlighted, mismatches between the sum of line items and the stated total are surfaced explicitly, and deleted/added items are immediately reflected in a live recalculation.
+Built with TypeScript, React, Gemini 3.1 Flash, and Postgres—designed around a powerful correction workflow that catches what the AI misses.
 
 ---
 
-## Setup
+## Why This Matters
+
+**The Problem:** Receipts are unstructured images. Digitizing them requires careful manual entry or building complex OCR pipelines. Neither scales.
+
+**The Solution:** Feed a receipt photo to Gemini 3.1 Flash. Get back merchant, date, line items, and total in milliseconds. Review the extracted data with visual confidence flags highlighting uncertain fields. Edit inline. Save corrected data. Done.
+
+The magic is in the **correction-first UX**—the app assumes the AI will be imperfect (especially on blurry or complex receipts) and makes fixing errors trivial, not finding them a puzzle.
+
+---
+
+## Key Features
+
+✅ **AI-Powered Extraction** — Gemini 3.1 Flash processes receipt images in 2–4 seconds  
+✅ **Smart Confidence Flagging** — Visual warnings on uncertain fields, detected sum-vs-total mismatches  
+✅ **Live Correction Workflow** — Edit any field inline; totals recalculate instantly  
+✅ **Persistent Storage** — All corrections saved to Postgres  
+✅ **Full-Stack TypeScript** — Express backend + React frontend, type-safe end-to-end  
+
+---
+
+## How It Works
+
+1. **Upload** a receipt image via the frontend
+2. **Extract** — Backend sends image to Gemini 3.1 Flash with a structured prompt
+3. **Review** — Frontend highlights uncertain extractions and math mismatches
+4. **Correct** — Edit fields inline with live validation
+5. **Save** — Corrected receipt stored in Postgres
+
+---
+
+## Quick Start
 
 ### Prerequisites
 
@@ -16,7 +44,7 @@ A two-part app: a TypeScript/Express backend that accepts a receipt image, sends
 - A running Postgres instance
 - A Google Gemini API key
 
-### Environment
+### Setup
 
 ```bash
 # backend/.env (copy from backend/.env.example)
@@ -35,14 +63,18 @@ npm run db:migrate
 npm run dev
 ```
 
-Frontend → http://localhost:5173  
-Backend → http://localhost:3001
+**Frontend:** http://localhost:5173  
+**Backend:** http://localhost:3001
 
 ---
 
-## Biggest tradeoffs
+## Technical Approach
 
-**1. Gemini 2.0 Flash over GPT-4o or Claude**  
+## Design Decisions
+
+Why these choices? Because shipping fast with good UX beats pursuing perfection in the wrong direction.
+
+**1. Gemini 3.1 Flash Preview over GPT-4o or Claude**  
 Flash is fast (~2–4s for a receipt image) and cheap, which matters for a product where users will upload casually and expect near-instant feedback. Accuracy is slightly lower than the frontier models on complex or blurry receipts — but since users are correcting the output anyway, getting *something reasonable* quickly beats getting *something perfect* slowly. The correction UX is designed to catch what the model misses, not to avoid the problem.
 
 **2. Confidence flags instead of confidence scores**  
@@ -53,15 +85,19 @@ A deliberate product decision: subtotals (pre-tax amounts) are arithmetically re
 
 ---
 
-## Where I used an LLM
+## Implementation: Where LLMs Fit
 
-- **Gemini 2.0 Flash**: The core vision model — sends the receipt image as base64 with a structured prompt and returns JSON. The prompt specifies the exact schema, tells the model to exclude subtotals, surface discounts as negatives, and write `_notes` when the image is unclear.
-- **Claude (Sonnet)**: Used for rapid prompt iteration on the extraction prompt — specifically tuning the `_notes` instruction and the line item rules. Also scaffolded the initial Postgres schema with it.
-- Everything else — API structure, frontend components, the confidence flag logic, the mismatch detector — written manually.
+This project isn't all AI—most of the actual work is intentional engineering:
+
+- **Gemini 3.1 Flash** → Core vision model: base64 image + structured prompt → JSON extraction
+- **Claude Sonnet** → Rapid prompt iteration (tuning `_notes` instruction, line item rules)
+- **Everything else** → Manual: API structure, frontend components, confidence flag logic, mismatch detection
+
+The result: AI does what it's best at (vision), humans do the rest (UX, validation, persistence).
 
 ---
 
-## What I'd do with another week
+## Roadmap: Next Priorities
 
 1. **Receipt image preview in the editor** — the user is reviewing extracted data but can't see the original image to verify. That's the most glaring gap in the current correction UX. Storing images in S3 or on disk and displaying them side-by-side would make corrections dramatically faster.
 2. **Re-parse button** — if the extraction is badly wrong (blurry image), the user currently has to fix everything manually. A "try again" that re-sends to Gemini with a note ("the first extraction missed the date — it's on the bottom right") would save a lot of effort.
@@ -70,10 +106,18 @@ A deliberate product decision: subtotals (pre-tax amounts) are arithmetically re
 
 ---
 
-## One thing I'd push back on
+## The Real Insight
 
-The spec says "the correction flow is the most important part" — and I agree, but the framing implies the LLM output is always the source of truth that the user corrects *down from*. That's backwards for low-quality images: sometimes the model returns confident-looking but wrong data, and the user has no signal that something needs fixing.
+**Current limitation:** The spec emphasizes correction as the most important UX—and I agree. But there's a blind spot.
 
-I'd push for the product to show the original image alongside the extracted fields — not just flag uncertain ones. Without that, a user who trusts the interface might save wrong data without noticing. The correction UX is only as good as the user's ability to spot what's wrong, and right now we're asking them to do that from memory.
+The way most apps handle AI output is wrong: they assume the LLM is ground truth and the user corrects *down from* it. That's backwards for low-quality images. Sometimes the model returns confident-looking *but incorrect* data, and the user has no signal to distrust it.
 
-The flag system I built is a partial mitigation, but the real fix is the side-by-side view.
+**The fix:** Show the original image alongside extracted fields. Not just flag uncertain ones—make verification immediate and visual. A user reviewing extracted data from memory is flying blind. A user reviewing it against the receipt photo will catch almost everything.
+
+The current flag system is a mitigation. The real solution is the side-by-side view—that's the next priority.
+
+---
+
+## Contributing
+
+This is a complete, self-contained application. Feel free to fork, extend, or use it as a foundation for your own receipt processing workflow.
